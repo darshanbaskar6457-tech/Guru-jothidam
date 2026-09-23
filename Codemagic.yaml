@@ -1,1 +1,46 @@
-codemagic.yaml
+workflows:
+  guru-jothidam-debug:
+    name: Guru Jothidam APK
+    instance_type: linux_x2
+    max_build_duration: 60
+
+    environment:
+      java: 17
+
+    scripts:
+      - name: Extract Android project
+        script: |
+          set -e
+          ZIP_FILE=$(find "$CM_BUILD_DIR" -maxdepth 1 -type f -name '*.zip' | head -n 1)
+
+          if [ -z "$ZIP_FILE" ]; then
+            echo "Project ZIP not found"
+            exit 1
+          fi
+
+          mkdir -p "$CM_BUILD_DIR/build-src"
+          unzip -q "$ZIP_FILE" -d "$CM_BUILD_DIR/build-src"
+
+          APP_DIR=$(find "$CM_BUILD_DIR/build-src" -type f -name 'settings.gradle' -print -quit | xargs dirname)
+
+          if [ -z "$APP_DIR" ]; then
+            echo "Android project not found"
+            exit 1
+          fi
+
+          echo "APP_DIR=$APP_DIR" > "$CM_BUILD_DIR/build.env"
+
+      - name: Build APK
+        script: |
+          set -e
+          source "$CM_BUILD_DIR/build.env"
+
+          cd "$APP_DIR"
+
+          gradle wrapper --gradle-version 8.7 --distribution-type bin
+          chmod +x gradlew
+
+          ./gradlew assembleDebug
+
+    artifacts:
+      - "**/app/build/outputs/**/*.apk"
