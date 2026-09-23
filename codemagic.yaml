@@ -11,7 +11,8 @@ workflows:
       - name: Extract Android project
         script: |
           set -e
-          ZIP_FILE=$(find "$CM_BUILD_DIR" -maxdepth 1 -type f -name '*.zip' | head -n 1)
+
+          ZIP_FILE=$(find "$CM_BUILD_DIR" -maxdepth 1 -type f -name "*.zip" | head -n 1)
 
           if [ -z "$ZIP_FILE" ]; then
             echo "Project ZIP not found"
@@ -19,48 +20,42 @@ workflows:
           fi
 
           mkdir -p "$CM_BUILD_DIR/build-src"
+
           unzip -q "$ZIP_FILE" -d "$CM_BUILD_DIR/build-src"
 
-          APP_DIR=$(find "$CM_BUILD_DIR/build-src" -type f -name 'settings.gradle' -print -quit | xargs dirname)
+          APP_DIR=$(find "$CM_BUILD_DIR/build-src" -type f -name "settings.gradle" -print -quit | xargs dirname)
 
           if [ -z "$APP_DIR" ]; then
             echo "Android project not found"
             exit 1
           fi
 
+          echo "Android project found at: $APP_DIR"
+
           echo "APP_DIR=$APP_DIR" > "$CM_BUILD_DIR/build.env"
 
-             -       - name: Build APK
+      - name: Build APK
         script: |
           set -e
+
           source "$CM_BUILD_DIR/build.env"
 
           cd "$APP_DIR"
 
-          printf '%s\n' \
-            'allprojects {' \
-            '    configurations.all {' \
-            '        exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib-jdk7"' \
-            '        exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib-jdk8"' \
-            '    }' \
-            '}' \
-            > "$CM_BUILD_DIR/kotlin-fix.gradle"
+          cat > "$CM_BUILD_DIR/kotlin-fix.gradle" <<'EOF'
+          allprojects {
+              configurations.all {
+                  exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib-jdk7"
+                  exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib-jdk8"
+              }
+          }
+          EOF
 
           gradle wrapper --gradle-version 8.7 --distribution-type bin
+
           chmod +x gradlew
 
           ./gradlew assembleDebug --init-script "$CM_BUILD_DIR/kotlin-fix.gradle"
 
-configurations.all {
-    exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib-jdk7"
-    exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib-jdk8"
-}
-EOF
-          done
-
-          gradle wrapper --gradle-version 8.7 --distribution-type bin
-          chmod +x gradlew
-
-          ./gradlew assembleDebug
     artifacts:
       - "**/app/build/outputs/**/*.apk"
