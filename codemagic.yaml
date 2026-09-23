@@ -30,17 +30,28 @@ workflows:
 
           echo "APP_DIR=$APP_DIR" > "$CM_BUILD_DIR/build.env"
 
-      - name: Build APK
+             - name: Build APK
         script: |
           set -e
           source "$CM_BUILD_DIR/build.env"
 
           cd "$APP_DIR"
 
+          # Remove old Kotlin JDK7/JDK8 dependencies that conflict
+          # with kotlin-stdlib 1.8.22
+          find . -name "build.gradle" -type f -print0 | while IFS= read -r -d '' file; do
+            cat >> "$file" <<'EOF'
+
+configurations.all {
+    exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib-jdk7"
+    exclude group: "org.jetbrains.kotlin", module: "kotlin-stdlib-jdk8"
+}
+EOF
+          done
+
           gradle wrapper --gradle-version 8.7 --distribution-type bin
           chmod +x gradlew
 
           ./gradlew assembleDebug
-
     artifacts:
       - "**/app/build/outputs/**/*.apk"
